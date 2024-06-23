@@ -1,10 +1,8 @@
-const { Client } = require('discord.js-selfbot-v13');
-const puppeteer = require('puppeteer');
-const { Telegraf } = require('telegraf');
+import { Client } from 'discord.js-selfbot-v13';
+import puppeteer from 'puppeteer';
 
 const client = new Client();
-const telegramBot = new Telegraf('telegram-bot-token');
-const telegramChatId = 'telegram-id';
+const channelId = 'discord-channel-ID';
 
 function parseMessageContent(content) {
   const parts = content.split(' - ');
@@ -18,7 +16,7 @@ async function searchEbay(query) {
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query.productName)}`);
-  
+
   const results = await page.evaluate(() => {
     const listings = Array.from(document.querySelectorAll('.s-item'));
     return listings.map(listing => ({
@@ -54,7 +52,7 @@ async function searchKleinanzeigen(query) {
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await page.goto(`https://www.ebay-kleinanzeigen.de/s-suchanfrage.html?keywords=${encodeURIComponent(query.productName)}`);
-  
+
   const results = await page.evaluate(() => {
     const listings = Array.from(document.querySelectorAll('.ad-listitem'));
     return listings.map(listing => ({
@@ -72,16 +70,16 @@ function formatResults(results) {
   return results.map(result => `${result.title}\n${result.price}\n${result.link}`).join('\n\n');
 }
 
-// Notification
+// notification
 
-function sendTelegramNotification(notification) {
-  telegramBot.telegram.sendMessage(telegramChatId, notification);
+async function sendDiscordNotification(channel, notification) {
+  await channel.send(notification);
 }
 
-// Message
+// Monitor Discord channel 
 
 client.on('messageCreate', async (message) => {
-  if (message.channel.id === 'channel-id') {
+  if (message.channel.id === 'channel-ID') {
     const query = parseMessageContent(message.content);
 
     const ebayResults = await searchEbay(query);
@@ -92,9 +90,11 @@ client.on('messageCreate', async (message) => {
 
     if (results.length > 0) {
       const notification = formatResults(results);
-      sendTelegramNotification(notification);
+      const notificationChannel = await client.channels.fetch(channelId);
+      await sendDiscordNotification(notificationChannel, notification);
     }
   }
 });
 
-client.login('token');
+client.login('discord-user-doken');
+
