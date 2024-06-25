@@ -11,7 +11,7 @@ function parseMessageContent(content) {
     price: parseFloat(parts[1].replace(/[^\d.-]/g, ''))
   };
 }
-// ebay
+
 async function searchEbay(query) {
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
@@ -20,27 +20,27 @@ async function searchEbay(query) {
   const results = await page.evaluate(() => {
     const listings = Array.from(document.querySelectorAll('.s-item'));
     return listings.map(listing => ({
-      title: listing.querySelector('.s-item__title')?.innerText,
-      price: listing.querySelector('.s-item__price')?.innerText,
-      link: listing.querySelector('.s-item__link')?.href
+      title: listing.querySelector('.s-item__title')?.innerText || 'No title',
+      price: listing.querySelector('.s-item__price')?.innerText || 'No price',
+      link: listing.querySelector('.s-item__link')?.href || 'No link'
     }));
   });
 
   await browser.close();
   return results;
 }
-// searcj
+
 async function searchVinted(query) {
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`https://www.vinted.com/catalog?search_text=${encodeURIComponent(query.productName)}`);
-  
+
   const results = await page.evaluate(() => {
     const listings = Array.from(document.querySelectorAll('.item-box'));
     return listings.map(listing => ({
-      title: listing.querySelector('.item-box-title')?.innerText,
-      price: listing.querySelector('.item-box-price')?.innerText,
-      link: listing.querySelector('.item-box-link')?.href
+      title: listing.querySelector('.item-box-title')?.innerText || 'No title',
+      price: listing.querySelector('.item-box-price')?.innerText || 'No price',
+      link: listing.querySelector('.item-box-link')?.href || 'No link'
     }));
   });
 
@@ -56,16 +56,16 @@ async function searchKleinanzeigen(query) {
   const results = await page.evaluate(() => {
     const listings = Array.from(document.querySelectorAll('.ad-listitem'));
     return listings.map(listing => ({
-      title: listing.querySelector('.text-module-begin')?.innerText,
-      price: listing.querySelector('.aditem-main--middle--price')?.innerText,
-      link: listing.querySelector('a')?.href
+      title: listing.querySelector('.text-module-begin')?.innerText || 'No title',
+      price: listing.querySelector('.aditem-main--middle--price')?.innerText || 'No price',
+      link: listing.querySelector('a')?.href || 'No link'
     }));
   });
 
   await browser.close();
   return results;
 }
-// result
+
 function formatResults(results) {
   return results.map(result => `${result.title}\n${result.price}\n${result.link}`).join('\n\n');
 }
@@ -73,7 +73,7 @@ function formatResults(results) {
 async function sendDiscordNotification(channel, notification) {
   await channel.send(notification);
 }
-// message create
+
 client.on('messageCreate', async (message) => {
   if (message.channel.id === channelId) {
     const query = parseMessageContent(message.content);
