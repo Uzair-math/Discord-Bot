@@ -11,9 +11,9 @@ function parseMessageContent(content) {
     price: parseFloat(parts[1].replace(/[^\d.-]/g, ''))
   };
 }
-
+// ebay
 async function searchEbay(query) {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query.productName)}`);
 
@@ -29,9 +29,9 @@ async function searchEbay(query) {
   await browser.close();
   return results;
 }
-
+// searcj
 async function searchVinted(query) {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`https://www.vinted.com/catalog?search_text=${encodeURIComponent(query.productName)}`);
   
@@ -49,7 +49,7 @@ async function searchVinted(query) {
 }
 
 async function searchKleinanzeigen(query) {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`https://www.ebay-kleinanzeigen.de/s-suchanfrage.html?keywords=${encodeURIComponent(query.productName)}`);
 
@@ -65,21 +65,17 @@ async function searchKleinanzeigen(query) {
   await browser.close();
   return results;
 }
-
+// result
 function formatResults(results) {
   return results.map(result => `${result.title}\n${result.price}\n${result.link}`).join('\n\n');
 }
 
-// notification
-
 async function sendDiscordNotification(channel, notification) {
   await channel.send(notification);
 }
-
-// Monitor Discord channel 
-
+// message create
 client.on('messageCreate', async (message) => {
-  if (message.channel.id === 'channel-ID') {
+  if (message.channel.id === channelId) {
     const query = parseMessageContent(message.content);
 
     const ebayResults = await searchEbay(query);
@@ -96,5 +92,4 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login('discord-user-doken');
-
+client.login('token');
