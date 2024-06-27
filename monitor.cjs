@@ -5,11 +5,13 @@ const client = new Client();
 const channelId = 'discord-channel-ID';
 
 function parseMessageContent(content) {
-  const parts = content.split(' - ');
-  return {
-    productName: parts[0].trim(),
-    price: parseFloat(parts[1].replace(/[^\d.-]/g, ''))
-  };
+  const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+  const productName = lines[0];
+  const sizesAndPrices = lines.slice(1).map(line => {
+    const [size, price] = line.split(' €');
+    return { size: size.trim(), price: parseFloat(price.trim()) };
+  });
+  return { productName, sizesAndPrices };
 }
 
 async function searchEbay(query) {
@@ -76,18 +78,22 @@ async function sendDiscordNotification(channel, notification) {
 
 client.on('messageCreate', async (message) => {
   if (message.channel.id === channelId) {
-    const query = parseMessageContent(message.content);
+    const { productName, sizesAndPrices } = parseMessageContent(message.content);
 
-    const ebayResults = await searchEbay(query);
-    const vintedResults = await searchVinted(query);
-    const kleinanzeigenResults = await searchKleinanzeigen(query);
+    for (const { size, price } of sizesAndPrices) {
+      const query = { productName: `${productName} ${size}`, price };
 
-    const results = [...ebayResults, ...vintedResults, ...kleinanzeigenResults];
+      const ebayResults = await searchEbay(query);
+      const vintedResults = await searchVinted(query);
+      const kleinanzeigenResults = await searchKleinanzeigen(query);
 
-    if (results.length > 0) {
-      const notification = formatResults(results);
-      const notificationChannel = await client.channels.fetch(channelId);
-      await sendDiscordNotification(notificationChannel, notification);
+      const results = [...ebayResults, ...vintedResults, ...kleinanzeigenResults];
+
+      if (results.length > 0) {
+        const notification = formatResults(results);
+        const notificationChannel = await client.channels.fetch(channelId);
+        await sendDiscordNotification(notificationChannel, notification);
+      }
     }
   }
 });
