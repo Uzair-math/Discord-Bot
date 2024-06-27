@@ -1,8 +1,12 @@
+
 import { Client } from 'discord.js-selfbot-v13';
 import puppeteer from 'puppeteer';
+import nodemailer from 'nodemailer';
 
 const client = new Client();
 const channelId = 'discord-channel-ID';
+const emailRecipient = 'muhammad@example.com';
+const priceDifferenceThreshold = 5; 
 
 function parseMessageContent(content) {
   const lines = content.split('\n').map(line => line.trim()).filter(line => line);
@@ -23,7 +27,7 @@ async function searchEbay(query) {
     const listings = Array.from(document.querySelectorAll('.s-item'));
     return listings.map(listing => ({
       title: listing.querySelector('.s-item__title')?.innerText || 'No title',
-      price: listing.querySelector('.s-item__price')?.innerText || 'No price',
+      price: parseFloat((listing.querySelector('.s-item__price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
       link: listing.querySelector('.s-item__link')?.href || 'No link'
     }));
   });
@@ -41,7 +45,7 @@ async function searchVinted(query) {
     const listings = Array.from(document.querySelectorAll('.item-box'));
     return listings.map(listing => ({
       title: listing.querySelector('.item-box-title')?.innerText || 'No title',
-      price: listing.querySelector('.item-box-price')?.innerText || 'No price',
+      price: parseFloat((listing.querySelector('.item-box-price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
       link: listing.querySelector('.item-box-link')?.href || 'No link'
     }));
   });
@@ -59,7 +63,7 @@ async function searchKleinanzeigen(query) {
     const listings = Array.from(document.querySelectorAll('.ad-listitem'));
     return listings.map(listing => ({
       title: listing.querySelector('.text-module-begin')?.innerText || 'No title',
-      price: listing.querySelector('.aditem-main--middle--price')?.innerText || 'No price',
+      price: parseFloat((listing.querySelector('.aditem-main--middle--price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
       link: listing.querySelector('a')?.href || 'No link'
     }));
   });
@@ -69,11 +73,26 @@ async function searchKleinanzeigen(query) {
 }
 
 function formatResults(results) {
-  return results.map(result => `${result.title}\n${result.price}\n${result.link}`).join('\n\n');
+  return results.map(result => `${result.title}\n${result.price} €\n${result.link}`).join('\n\n');
 }
 
-async function sendDiscordNotification(channel, notification) {
-  await channel.send(notification);
+async function sendEmailNotification(subject, text) {
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'muhammad@gmail.com', 
+      pass: 'muhammad' 
+    }
+  });
+
+  let mailOptions = {
+    from: 'muhammad@gmail.com',
+    to: emailRecipient,
+    subject: subject,
+    text: text
+  };
+
+  await transporter.sendMail(mailOptions);
 }
 
 client.on('messageCreate', async (message) => {
@@ -87,12 +106,14 @@ client.on('messageCreate', async (message) => {
       const vintedResults = await searchVinted(query);
       const kleinanzeigenResults = await searchKleinanzeigen(query);
 
-      const results = [...ebayResults, ...vintedResults, ...kleinanzeigenResults];
+      const allResults = [...ebayResults, ...vintedResults, ...kleinanzeigenResults];
 
-      if (results.length > 0) {
-        const notification = formatResults(results);
-        const notificationChannel = await client.channels.fetch(channelId);
-        await sendDiscordNotification(notificationChannel, notification);
+      const filteredResults = allResults.filter(result => result.price < (price - priceDifferenceThreshold));
+
+      if (filteredResults.length > 0) {
+        const notification = formatResults(filteredResults);
+        const subject = `Price Drop Alert: ${productName} ${size}`;
+        await sendEmailNotification(subject, notification);
       }
     }
   }
