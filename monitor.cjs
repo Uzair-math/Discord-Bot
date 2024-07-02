@@ -1,4 +1,3 @@
-
 import { Client } from 'discord.js-selfbot-v13';
 import puppeteer from 'puppeteer';
 import nodemailer from 'nodemailer';
@@ -6,7 +5,7 @@ import nodemailer from 'nodemailer';
 const client = new Client();
 const channelId = 'discord-channel-ID';
 const emailRecipient = 'muhammad@example.com';
-const priceDifferenceThreshold = 5; 
+const priceDifferenceThreshold = 5;
 
 function parseMessageContent(content) {
   const lines = content.split('\n').map(line => line.trim()).filter(line => line);
@@ -80,13 +79,13 @@ async function sendEmailNotification(subject, text) {
   let transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'muhammad@gmail.com', 
-      pass: 'muhammad' 
+      user: 'email@gmail.com', 
+      pass: 'email-password' 
     }
   });
 
   let mailOptions = {
-    from: 'muhammad@gmail.com',
+    from: 'email@gmail.com',
     to: emailRecipient,
     subject: subject,
     text: text
@@ -119,4 +118,4 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login('token');
+client.login('discord token');
