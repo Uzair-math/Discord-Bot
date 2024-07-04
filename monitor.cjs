@@ -1,121 +1,117 @@
-import { Client } from 'discord.js-selfbot-v13';
-import puppeteer from 'puppeteer';
-import nodemailer from 'nodemailer';
-
-const client = new Client();
-const channelId = 'discord-channel-ID';
-const emailRecipient = 'muhammad@example.com';
-const priceDifferenceThreshold = 5;
-
-function parseMessageContent(content) {
-  const lines = content.split('\n').map(line => line.trim()).filter(line => line);
-  const productName = lines[0];
-  const sizesAndPrices = lines.slice(1).map(line => {
-    const [size, price] = line.split(' €');
-    return { size: size.trim(), price: parseFloat(price.trim()) };
-  });
-  return { productName, sizesAndPrices };
-}
+const { Client, GatewayIntentBits, InteractionType } = require("discord.js");
+const axios = require('axios');
+const cheerio = require('cheerio');
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
 async function searchEbay(query) {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query.productName)}`);
+  const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`;
+  
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+    let listings = [];
 
-  const results = await page.evaluate(() => {
-    const listings = Array.from(document.querySelectorAll('.s-item'));
-    return listings.map(listing => ({
-      title: listing.querySelector('.s-item__title')?.innerText || 'No title',
-      price: parseFloat((listing.querySelector('.s-item__price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
-      link: listing.querySelector('.s-item__link')?.href || 'No link'
-    }));
-  });
+    $('.s-item').each((i, element) => {
+      const title = $(element).find('.s-item__title').text().trim();
+      const link = $(element).find('.s-item__link').attr('href');
+      listings.push({ title, link });
+    });
 
-  await browser.close();
-  return results;
+    return listings;
+  } catch (error) {
+    console.error('Error fetching eBay results:', error);
+    return [];
+  }
 }
 
 async function searchVinted(query) {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.goto(`https://www.vinted.com/catalog?search_text=${encodeURIComponent(query.productName)}`);
+  const url = `https://www.vinted.com/catalog?search_text=${encodeURIComponent(query)}`;
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+    let listings = [];
 
-  const results = await page.evaluate(() => {
-    const listings = Array.from(document.querySelectorAll('.item-box'));
-    return listings.map(listing => ({
-      title: listing.querySelector('.item-box-title')?.innerText || 'No title',
-      price: parseFloat((listing.querySelector('.item-box-price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
-      link: listing.querySelector('.item-box-link')?.href || 'No link'
-    }));
-  });
+    $('.catalog-item').each((i, element) => {
+      const title = $(element).find('.catalog-item__title').text().trim();
+      const link = $(element).find('a').attr('href');
+      listings.push({ title, link: `https://www.vinted.com${link}` });
+    });
 
-  await browser.close();
-  return results;
+    return listings;
+  } catch (error) {
+    console.error('Error fetching Vinted results:', error);
+    return [];
+  }
 }
 
 async function searchKleinanzeigen(query) {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.goto(`https://www.ebay-kleinanzeigen.de/s-suchanfrage.html?keywords=${encodeURIComponent(query.productName)}`);
+  const url = `https://www.kleinanzeigen.de/s-suchanfrage.html?keywords=${encodeURIComponent(query)}`;
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+    let listings = [];
 
-  const results = await page.evaluate(() => {
-    const listings = Array.from(document.querySelectorAll('.ad-listitem'));
-    return listings.map(listing => ({
-      title: listing.querySelector('.text-module-begin')?.innerText || 'No title',
-      price: parseFloat((listing.querySelector('.aditem-main--middle--price')?.innerText.replace(/[^\d.-]/g, '') || '0').replace(',', '.')),
-      link: listing.querySelector('a')?.href || 'No link'
-    }));
-  });
+    $('.aditem').each((i, element) => {
+      const title = $(element).find('.aditem-main--title').text().trim();
+      const link = $(element).find('.aditem-main--title a').attr('href');
+      listings.push({ title, link: `https://www.kleinanzeigen.de${link}` });
+    });
 
-  await browser.close();
-  return results;
+    return listings;
+  } catch (error) {
+    console.error('Error fetching Kleinanzeigen results:', error);
+    return [];
+  }
+}
+async function sendNotification(message) {
+  const webhookURL = 'webhook URL';
+  try {
+    await axios.post(webhookURL, { content: message });
+  } catch (error) {
+    console.error('Error sending notification:', error);
+  }
 }
 
-function formatResults(results) {
-  return results.map(result => `${result.title}\n${result.price} €\n${result.link}`).join('\n\n');
-}
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
-async function sendEmailNotification(subject, text) {
-  let transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: 'email@gmail.com', 
-      pass: 'email-password' 
-    }
-  });
+  console.log(`Received message: ${message.content}`); 
 
-  let mailOptions = {
-    from: 'email@gmail.com',
-    to: emailRecipient,
-    subject: subject,
-    text: text
-  };
+  if (message.content.startsWith("search")) {
+    const query = message.content.split("search")[1].trim();
+    console.log(`Search query: ${query}`); 
 
-  await transporter.sendMail(mailOptions);
-}
+    const ebayResults = await searchEbay(query);
+    console.log(`eBay results: ${JSON.stringify(ebayResults)}`); 
+    const vintedResults = await searchVinted(query);
+    console.log(`Vinted results: ${JSON.stringify(vintedResults)}`); 
+    const kleinanzeigenResults = await searchKleinanzeigen(query);
+    console.log(`Kleinanzeigen results: ${JSON.stringify(kleinanzeigenResults)}`); 
 
-client.on('messageCreate', async (message) => {
-  if (message.channel.id === channelId) {
-    const { productName, sizesAndPrices } = parseMessageContent(message.content);
+    let results = [];
+    results = results.concat(ebayResults, vintedResults, kleinanzeigenResults);
 
-    for (const { size, price } of sizesAndPrices) {
-      const query = { productName: `${productName} ${size}`, price };
+    let notificationMessage = `Search results for "${query}":\n`;
+    results.forEach(result => {
+      notificationMessage += `${result.title} - ${result.link}\n`;
+    });
 
-      const ebayResults = await searchEbay(query);
-      const vintedResults = await searchVinted(query);
-      const kleinanzeigenResults = await searchKleinanzeigen(query);
-
-      const allResults = [...ebayResults, ...vintedResults, ...kleinanzeigenResults];
-
-      const filteredResults = allResults.filter(result => result.price < (price - priceDifferenceThreshold));
-
-      if (filteredResults.length > 0) {
-        const notification = formatResults(filteredResults);
-        const subject = `Price Drop Alert: ${productName} ${size}`;
-        await sendEmailNotification(subject, notification);
-      }
-    }
+    await sendNotification(notificationMessage);
+    message.reply("Search completed. Notification sent.");
   }
 });
 
-client.login('discord token');
+client.on("interactionCreate", (interaction) => {
+  if (interaction.type === InteractionType.ApplicationCommand) {
+    interaction.reply("pong!!");
+  }
+});
+
+client.login("token");
+
