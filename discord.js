@@ -90,7 +90,7 @@ async function searchKleinanzeigen(query) {
       return [];
     }
   } catch (error) {
-    console.error('Error searching Kleinanzeigen:', error);
+    console.error('Error searching Kleinanzeigen APP Muhammad:', error);
     return [];
   }
 }
